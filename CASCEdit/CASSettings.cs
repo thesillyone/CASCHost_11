@@ -23,6 +23,7 @@ namespace CASCEdit
 		public LocaleFlags Locale { get; set; } = LocaleFlags.enUS;
         public bool StaticMode { get; set; } = false;
 
+        public string Product { get; set; }
 
         public HashSet<string> DownloadLocations { get; set; }
 		public HashSet<string> CDNs { get; set; }

@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using CASCEdit.Handlers;
 using CASCEdit.IO;
 
 namespace CASCEdit.Configs
@@ -15,6 +13,7 @@ namespace CASCEdit.Configs
         private List<string> Lines;
         private string BaseFile;
         private string NewLineChar;
+        private string productCode;
 
         public string this[string key]
         {
@@ -26,11 +25,14 @@ namespace CASCEdit.Configs
             }
         }
 
-        public SingleConfig(string file, string key, string value)
+        public SingleConfig(string file, string key, string value, string product = null)
         {
             BaseFile = file;
+            productCode = product;
 
-			Stream stream;
+
+            Stream stream;
+
 
             if (Uri.IsWellFormedUriString(file, UriKind.Absolute)) // URLs require streaming
             {
@@ -123,6 +125,18 @@ namespace CASCEdit.Configs
                 }
                 else
                 {
+
+                    if (Path.GetFileNameWithoutExtension(BaseFile) == ".build")
+                    {
+                        // ignore non-relevant product entry in .build.info
+                        int productidx = fields.IndexOf("Product");
+                        if (productidx >= 0 && tokens[productidx] != productCode)
+                        {
+                            Lines.RemoveAt(i--);
+                            continue;
+                        }
+                    }
+
                     // ignore lines not matching the indentifier key value
                     int keyidx = fields.IndexOf(key);
                     if (keyidx >= 0 && tokens[keyidx] != value)

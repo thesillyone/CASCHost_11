@@ -3,7 +3,6 @@ using CASCEdit.Configs;
 using CASCEdit.Helpers;
 using CASCEdit.Structs;
 using Microsoft.AspNetCore.Hosting;
-using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,6 +12,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Data.SQLite;
 
 namespace CASCHost
 {
@@ -32,16 +32,41 @@ namespace CASCHost
 		private Queue<string> queries = new Queue<string>();
 		private bool firstrun = true;
 
+        private string dbFileName = Startup.Settings.SqliteDatabase;
 
-		public Cache(IHostingEnvironment environment)
+
+        public Cache(IHostingEnvironment environment)
 		{
 			env = environment;
 			Startup.Logger.LogInformation("Loading cache...");
 			Load();
 		}
 
+        public void wipeDB()
+        {
+            if (!File.Exists(dbFileName))
+                return;
 
-		public void AddOrUpdate(CacheEntry item)
+            using (SQLiteConnection connection = new SQLiteConnection("Data Source=" + dbFileName + ";Version=3;"))
+            using (SQLiteCommand command = new SQLiteCommand())
+            {
+                try
+                {
+                    connection.Open();
+                    command.Connection = connection;
+                    command.CommandText = WIPE_RECORDS;
+                    command.ExecuteNonQuery();
+                }
+                catch (SQLiteException ex)
+                {
+                    Startup.Logger?.LogFile(ex.Message);
+                    Startup.Logger?.LogAndThrow(CASCEdit.Logging.LogType.Critical, "Something wrong with the database.");
+                }
+            }
+        }
+
+
+        public void AddOrUpdate(CacheEntry item)
 		{
 			if(firstrun)
 			{
@@ -61,7 +86,7 @@ namespace CASCHost
 
 				RootFiles[item.Path] = item;
 
-				queries.Enqueue(string.Format(REPLACE_RECORD, MySqlHelper.EscapeString(item.Path), item.FileDataId, item.NameHash, item.CEKey, item.EKey));
+				queries.Enqueue(string.Format(REPLACE_RECORD, item.Path, item.FileDataId, item.NameHash, item.CEKey, item.EKey));
 				return;
 			}
 
@@ -71,7 +96,7 @@ namespace CASCHost
 				var existing = RootFiles.Where(x => x.Value.FileDataId == item.FileDataId).ToArray();
 				foreach (var ex in existing)
 				{
-					queries.Enqueue(string.Format(DELETE_RECORD, MySqlHelper.EscapeString(item.Path)));
+					queries.Enqueue(string.Format(DELETE_RECORD, item.Path));
 					RootFiles.Remove(ex.Key);
 				}
 			}
@@ -79,14 +104,14 @@ namespace CASCHost
 			// Add
 			RootFiles.Add(item.Path, item);
 
-			queries.Enqueue(string.Format(REPLACE_RECORD, MySqlHelper.EscapeString(item.Path), item.FileDataId, item.NameHash, item.CEKey, item.EKey));
+			queries.Enqueue(string.Format(REPLACE_RECORD, item.Path, item.FileDataId, item.NameHash, item.CEKey, item.EKey));
 		}
 
 		public void Remove(string file)
 		{
 			if (RootFiles.ContainsKey(file))
 			{
-				queries.Enqueue(string.Format(DELETE_RECORD, MySqlHelper.EscapeString(RootFiles[file].Path)));
+				queries.Enqueue(string.Format(DELETE_RECORD, RootFiles[file].Path));
 				RootFiles.Remove(file);
 			}
 		}
@@ -118,33 +143,37 @@ namespace CASCHost
 		#region SQL Methods
 		private void LoadOrCreate()
 		{
-			Version = new SingleConfig(Path.Combine(env.WebRootPath, "SystemFiles", ".build.info"), "Active", "1")["Version"];
-			using (MySqlConnection connection = new MySqlConnection(Startup.Settings.SqlConnection))
-			using (MySqlCommand command = new MySqlCommand())
-			{
-				try
-				{
-					connection.Open();
-					command.Connection = connection;
+			Version = new SingleConfig(Path.Combine(env.WebRootPath, "SystemFiles", ".build.info"), "Active", "1", Startup.Settings.Product)["Version"];
 
-					// create data table
-					command.CommandText = CREATE_DATA_TABLE;
-					command.ExecuteNonQuery();
+            if (!File.Exists(dbFileName))
+                SQLiteConnection.CreateFile(dbFileName);
 
-					// load data
-					command.CommandText = LOAD_DATA;
-					ReadAll(command.ExecuteReader());
+            using (SQLiteConnection connection = new SQLiteConnection("Data Source=" + dbFileName + ";Version=3;"))
+            using (SQLiteCommand command = new SQLiteCommand())
+            {
+                try
+                {
+                    connection.Open();
+                    command.Connection = connection;
 
-					// purge old data
-					command.CommandText = PURGE_RECORDS;
-					command.ExecuteNonQuery();
-				}
-				catch(MySqlException ex)
-				{
-					Startup.Logger?.LogFile(ex.Message);
-					Startup.Logger?.LogAndThrow(CASCEdit.Logging.LogType.Critical, "Unable to connect to the database.");
-				}
-			}
+                    // create data table
+                    command.CommandText = CREATE_DATA_TABLE;
+                    command.ExecuteNonQuery();
+
+                    // load data
+                    command.CommandText = LOAD_DATA;
+                    ReadAll(command.ExecuteReader());
+
+                    // purge old data
+                    command.CommandText = PURGE_RECORDS;
+                    command.ExecuteNonQuery();
+                }
+                catch (SQLiteException ex)
+                {
+                    Startup.Logger?.LogFile(ex.Message);
+                    Startup.Logger?.LogAndThrow(CASCEdit.Logging.LogType.Critical, "Something wrong with the database.");
+                }
+            }
 		}
 
 		private void ReadAll(DbDataReader reader)
@@ -158,8 +187,8 @@ namespace CASCHost
 					CacheEntry entry = new CacheEntry()
 					{
 						Path = reader.GetFieldValue<string>(1),
-						FileDataId = reader.GetFieldValue<uint>(2),
-						NameHash = reader.GetFieldValue<ulong>(3),
+						FileDataId = Convert.ToUInt32(reader.GetFieldValue<Int64>(2)),
+						NameHash = Convert.ToUInt64(reader.GetFieldValue<string>(3)),
 						CEKey = new MD5Hash(reader.GetFieldValue<string>(4).ToByteArray()),
 						EKey = new MD5Hash(reader.GetFieldValue<string>(5).ToByteArray())
 					};
@@ -172,11 +201,11 @@ namespace CASCHost
 					}
 					else if (reader.IsDBNull(6)) // needs to be marked for purge
 					{
-						queries.Enqueue(string.Format(DELETE_RECORD, MySqlHelper.EscapeString(entry.Path)));
+						queries.Enqueue(string.Format(DELETE_RECORD, entry.Path));
 						Startup.Logger.LogInformation($"{entry.Path} missing. Marked for removal.");
 						ToPurge.Add(entry.Path);
 					}
-					else if (reader.GetFieldValue<DateTime>(6) <= DateTime.Now.Date) // needs to be purged
+					else if (Convert.ToDateTime(reader.GetFieldValue<string>(6)) <= DateTime.Now.Date) // needs to be purged
 					{
 						ToPurge.Add(entry.Path);
 
@@ -212,52 +241,52 @@ namespace CASCHost
 				for (int i = 0; i < count; i++)
 					sb.AppendLine(queries.Dequeue());
 
-				try
-				{
-					using (MySqlConnection connection = new MySqlConnection(Startup.Settings.SqlConnection))
-					using (MySqlCommand command = new MySqlCommand(sb.ToString(), connection))
-					{
-						connection.Open();
-						command.ExecuteNonQuery();
-					}
-				}
-				catch (MySqlException ex)
-				{
-					Startup.Logger.LogError("SQLERR: " + ex.Message);
-				}
+                Startup.Logger.LogInformation("Updating...");
+
+                using (SQLiteConnection connection = new SQLiteConnection("Data Source=" + dbFileName + ";Version=3;"))
+                using (SQLiteCommand command = new SQLiteCommand(sb.ToString(), connection))
+                {
+                    try
+                    {
+                        connection.Open();
+                        command.ExecuteNonQuery();
+                    }
+                    catch (SQLiteException ex)
+                    {
+                        Startup.Logger?.LogFile(ex.Message);
+                        Startup.Logger?.LogAndThrow(CASCEdit.Logging.LogType.Critical, "DB Error.");
+                    }
+                }
 			}
 		}
 
-		#endregion
+        #endregion
 
-		#region SQL Strings
+        #region SQL Strings
 
-		private const string CREATE_DATA_TABLE = "SET GLOBAL innodb_file_format=Barracuda;                        " +
-												 "SET GLOBAL innodb_file_per_table=ON;                            " +
-												 "SET GLOBAL innodb_large_prefix=ON;                              " +
-												 "                                                                " +
-												 "CREATE TABLE IF NOT EXISTS `root_entries` (                     " +
-												 " `Id` BIGINT NOT NULL AUTO_INCREMENT,                           " +
-												 " `Path` VARCHAR(1024),                                          " +
-												 " `FileDataId` INT UNSIGNED,                                     " +
-												 " `Hash` BIGINT UNSIGNED,                                        " +
-												 " `MD5` VARCHAR(32),                                             " +
-												 " `BLTE` VARCHAR(32),                                            " +
-												 " `PurgeAt` DATE NULL,                                           " +
-												 " PRIMARY KEY(`Id`),                                             " +
-												 " UNIQUE INDEX `Path` (`Path`)                                   " +
-												 ") COLLATE = 'utf8_general_ci' ENGINE=InnoDB ROW_FORMAT=DYNAMIC; ";
+        private const string CREATE_DATA_TABLE = "CREATE TABLE IF NOT EXISTS `root_entries` (" +
+                                                      "`Id` INTEGER PRIMARY KEY, " +
+                                                      "`Path` TEXT UNIQUE," +
+                                                      " `FileDataId` INTEGER," +
+                                                      "`Hash` TEXT," +
+                                                      "`MD5` TEXT," +
+                                                      "`BLTE` TEXT," +
+                                                      "`PurgeAt` TEXT NULL" +
+                                                ");";
 
 		private const string LOAD_DATA =      "SELECT * FROM `root_entries`;";
 
-		private const string REPLACE_RECORD = "INSERT INTO `root_entries` (`Path`, `FileDataId`, `Hash`, `MD5`, `BLTE`, `PurgeAt`) VALUES ('{0}', '{1}', '{2}', '{3}', '{4}', NULL) " +
-                                              "ON DUPLICATE KEY UPDATE `FileDataId` = VALUES(`FileDataId`), `Hash` = VALUES(`Hash`), `MD5` = VALUES(`MD5`), `BLTE` = VALUES(`BLTE`), `PurgeAt` = VALUES(`PurgeAt`);";
+        private const string REPLACE_RECORD = "INSERT INTO `root_entries` (`Path`, `FileDataId`, `Hash`, `MD5`, `BLTE`, `PurgeAt`) VALUES ('{0}', '{1}', '{2}', '{3}', '{4}', NULL) " +
+                                              "ON CONFLICT(`Path`) DO UPDATE SET `FileDataId` = excluded.FileDataId, `Hash` = excluded.hash, `MD5` = excluded.md5, `BLTE` = excluded.blte, `PurgeAt` = excluded.PurgeAt;";
 
-		private const string DELETE_RECORD =  "UPDATE `root_entries` SET `PurgeAt` = DATE_ADD(CAST(NOW() AS DATE), INTERVAL 1 WEEK) WHERE `Path` = '{0}'; ";
 
-		private const string PURGE_RECORDS =  "DELETE FROM `root_entries` WHERE `PurgeAt` < CAST(NOW() AS DATE); ";
+        private const string DELETE_RECORD = "UPDATE `root_entries` SET `PurgeAt` = datetime('now') WHERE `Path` = '{0}';";
 
-		#endregion
+		private const string PURGE_RECORDS = "DELETE FROM `root_entries` WHERE `PurgeAt` <  datetime('now');";
 
-	}
+        private const string WIPE_RECORDS = "DELETE FROM `root_entries`";
+
+        #endregion
+
+    }
 }

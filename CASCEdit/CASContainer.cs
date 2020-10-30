@@ -99,7 +99,7 @@ namespace CASCEdit
                 return;
             }
 
-            BuildInfo = new SingleConfig(buildInfoPath, "Active", "1");
+            BuildInfo = new SingleConfig(buildInfoPath, "Active", "1", Settings.Product);
         }
 
         private static void LoadBuildConfig()
