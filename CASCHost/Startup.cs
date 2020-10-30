@@ -65,7 +65,7 @@ namespace CASCHost
 			Cache = new Cache(env);
 
 			//Start DataWatcher
-			Watcher = new DataWatcher(env);
+			Watcher = new DataWatcher(env, Cache);
 		}
 
 

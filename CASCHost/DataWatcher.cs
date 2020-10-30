@@ -27,18 +27,19 @@ namespace CASCHost
 		private readonly string outputPath;
 		private ConcurrentDictionary<string, FileSystemEventArgs> changes;
 		private CASSettings settings;
-		private DateTime lastBuild;
 
+        private Cache _cache;
 
-        public DataWatcher(IHostingEnvironment env)
+        public DataWatcher(IHostingEnvironment env, Cache Cache)
 		{
 			_env = env;
 			dataPath = Path.Combine(env.WebRootPath, "Data");
 			outputPath = Path.Combine(env.WebRootPath, "Output");
             changes = new ConcurrentDictionary<string, FileSystemEventArgs>();
-            lastBuild = new DateTime();
+            _cache = Cache;
 
-			LoadSettings();
+
+            LoadSettings();
             if (settings.StaticMode)
             {
                 ForceRebuild();
@@ -113,21 +114,33 @@ namespace CASCHost
 		#region CASC Update
 		public void ForceRebuild()
 		{
+            //Wipe DB
+            _cache.wipeDB();
+
+            //Wipe CASC
+            WipeCASCDirectory();
+
+            changes.Clear();
+
             //Rebuild all files
             var files = Directory.EnumerateFiles(dataPath, "*.*", SearchOption.AllDirectories).OrderBy(f => f);
             foreach (var f in files)
 			{
-				if(File.GetLastWriteTime(f) >= lastBuild || File.GetCreationTime(f) >= lastBuild)
-				{
-					var args = new FileSystemEventArgs(WatcherChangeTypes.Changed, Path.GetDirectoryName(f), Path.GetFileName(f));
-                    changes.AddOrUpdate(f, args, (k, v) => args);
-                }
+                var args = new FileSystemEventArgs(WatcherChangeTypes.Changed, Path.GetDirectoryName(f), Path.GetFileName(f));
+                changes.AddOrUpdate(f, args, (k, v) => args);
             }
 
             timer = new Timer(UpdateCASCDirectory, null, 0, Timeout.Infinite);
 		}
 
-		private void UpdateCASCDirectory(object obj)
+        private void WipeCASCDirectory()
+        {
+            Directory.Delete(outputPath, true);
+            Directory.CreateDirectory(outputPath);
+        }
+
+
+        private void UpdateCASCDirectory(object obj)
 		{
 			if (RebuildInProgress) //Saving already wait for build to finish
 			{
@@ -205,7 +218,6 @@ namespace CASCHost
                 Environment.Exit(0);
             }
 
-            lastBuild = DateTime.Now;
 			RebuildInProgress = false;
 		}
 
@@ -276,7 +288,8 @@ namespace CASCHost
 				Cache = Startup.Cache,
 				Locale = locale,
 				CDNs = new HashSet<string>(),
-                StaticMode = Startup.Settings.StaticMode
+                StaticMode = Startup.Settings.StaticMode,
+                Product = Startup.Settings.Product
             };
 
 
