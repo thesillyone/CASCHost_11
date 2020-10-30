@@ -47,7 +47,7 @@ namespace CASCEdit.Handlers
 			this.locale = locale;
             string cdnPath = Helper.GetCDNPath("listfile.csv");
 
-            if (!(File.Exists(Path.Combine(CASContainer.Settings.OutputPath, cdnPath))) && onlineListfile)
+            if (!(File.Exists(cdnPath)) && onlineListfile)
             {
                 CASContainer.Logger.LogInformation("Downloading listfile from WoW.Tools");
                 ListFileClient.DownloadFile("https://wow.tools/casc/listfile/download/csv/unverified", cdnPath);
@@ -65,7 +65,7 @@ namespace CASCEdit.Handlers
             }
             else
             {
-                stream.BaseStream.Position = 0;
+                stream.BaseStream.Position -= 4;
             }
 
             long length = stream.BaseStream.Length;
@@ -81,7 +81,7 @@ namespace CASCEdit.Handlers
                 parsedFiles += (int)chunk.Count;
 
                 // set the global root
-                if (chunk.LocaleFlags == LocaleFlags.All_WoW && chunk.ContentFlags == ContentFlags.None)
+                if (chunk.LocaleFlags == LocaleFlags.All_WoW && chunk.ContentFlags == ContentFlags.F00080000)
 					GlobalRoot = chunk;
 
 				uint fileDataIndex = 0;
