@@ -257,3 +257,6 @@ paket-files/
 
 # Visual Studio Code
 .vscode
+
+CASCHost/caschost.db3
+CASCHost/listfile.csv
