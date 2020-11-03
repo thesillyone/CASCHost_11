@@ -18,6 +18,8 @@ namespace CASCHost
 		public bool StaticMode { get; set; } = false; // Build CDN file struct
         public string RebuildPassword { get; set; } = "";
 
+        public string GameDirectory { get; set; } = "";
+
         public string Product { get; set; } = "wow";
         public string SqliteDatabase { get; set; } = "caschost.db3";
 
@@ -27,8 +29,10 @@ namespace CASCHost
 		public string Locale { get; set; } // preferred locale for content
 
 		public string[] DirectoryHash { get; set; } // hashes of directories for offline change detection
-		
-		public void Save(IHostingEnvironment env)
+
+        public string GameVersion { get; set; } = ""; // Game version the cdn was built for
+
+        public void Save(IHostingEnvironment env)
 		{
 			if (CDNs == null)
 				CDNs = new string[0];
@@ -37,7 +41,7 @@ namespace CASCHost
 			var obj = new ExpandoObject() as IDictionary<string, Object>;
 			obj.Add(GetType().Name, this);
 
-			using (FileStream fs = new FileStream(Path.Combine(env.ContentRootPath, "appsettings.json"), FileMode.Create, FileAccess.Write, FileShare.Read))
+			using (FileStream fs = new FileStream(Path.Combine(env.ContentRootPath, $"appsettings.{Product}.json"), FileMode.Create, FileAccess.Write, FileShare.Read))
 			using (StreamWriter sw = new StreamWriter(fs))
 			{
 				sw.Write(JsonConvert.SerializeObject(obj, Formatting.Indented));

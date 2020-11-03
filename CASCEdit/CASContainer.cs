@@ -53,16 +53,16 @@ namespace CASCEdit
                 if (BuildInfo["Version"] != Settings.Cache?.Version)
                 {
                     Settings.Cache?.Clean();
-                    LoadBuildInfo(Settings.SystemFilesPath);
+                    LoadBuildInfo(Settings.BuildInfoPath);
                 }
                 else
                 {
                     Settings.SystemFilesPath = Settings.OutputPath; //Update system path to latest output build
                 }
             }
-            else if (File.Exists(Path.Combine(settings.SystemFilesPath, ".build.info")))
+            else if (File.Exists(Path.Combine(Settings.BuildInfoPath, ".build.info")))
             {
-                LoadBuildInfo(Settings.SystemFilesPath);
+                LoadBuildInfo(Settings.BuildInfoPath);
             }
             else
             {
@@ -99,6 +99,7 @@ namespace CASCEdit
                 return;
             }
 
+            Logger.LogInformation($"Loading build info for {Settings.Product}");
             BuildInfo = new SingleConfig(buildInfoPath, "Active", "1", Settings.Product);
         }
 

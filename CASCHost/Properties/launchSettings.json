@@ -16,7 +16,7 @@
     },
     "CASCHost": {
       "commandName": "Project",
-      "workingDirectory": "",
+      "commandLineArgs": "wow",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },

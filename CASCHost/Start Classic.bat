@@ -1,0 +1,2 @@
+CASCHost.exe wow_classic
+pause

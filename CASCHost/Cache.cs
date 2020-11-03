@@ -31,8 +31,7 @@ namespace CASCHost
 		private Dictionary<string, CacheEntry> RootFiles;
 		private Queue<string> queries = new Queue<string>();
 		private bool firstrun = true;
-
-        private string dbFileName = Startup.Settings.SqliteDatabase;
+        private string dbFileName => Startup.Settings.SqliteDatabase;
 
 
         public Cache(IHostingEnvironment environment)
@@ -194,7 +193,7 @@ namespace CASCHost
 					};
 
 					// keep files that still exist or are special and not flagged to be deleted
-					bool keep = File.Exists(Path.Combine(env.WebRootPath, "Data", entry.Path)) && reader.IsDBNull(6);
+					bool keep = File.Exists(Path.Combine(env.WebRootPath, "Data", Startup.Settings.Product, entry.Path)) && reader.IsDBNull(6);
 					if (keep || entry.FileDataId == 0)
 					{
 						RootFiles.Add(entry.Path, entry);
@@ -210,12 +209,12 @@ namespace CASCHost
 						ToPurge.Add(entry.Path);
 
 						string cdnpath = Helper.GetCDNPath(entry.EKey.ToString(), "", "", Startup.Settings.StaticMode);
-						string filepath = Path.Combine(env.WebRootPath, "Output", cdnpath);
+						string filepath = Path.Combine(env.WebRootPath, "Output", Startup.Settings.Product, cdnpath);
 
 						if (File.Exists(filepath))
 							File.Delete(filepath);
-						if (File.Exists(Path.Combine(env.WebRootPath, "Data", entry.Path)))
-							File.Delete(Path.Combine(env.WebRootPath, "Data", entry.Path));
+						if (File.Exists(Path.Combine(env.WebRootPath, "Data", Startup.Settings.Product, entry.Path)))
+							File.Delete(Path.Combine(env.WebRootPath, "Data", Startup.Settings.Product, entry.Path));
 					}
 				}
 

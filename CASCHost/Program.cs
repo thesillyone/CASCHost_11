@@ -11,14 +11,17 @@ namespace CASCHost
 {
 	public class Program
 	{
-		public static void Main(string[] args)
+        public static string Product;
+
+        public static void Main(string[] args)
 		{
 
+            Product = (args.Count() == 0) ? "wow" : args[0];
 			Directory.CreateDirectory("wwwroot");
 
-			var config = new ConfigurationBuilder()
+            var config = new ConfigurationBuilder()
 				.SetBasePath(Directory.GetCurrentDirectory())
-				.AddJsonFile("hosting.json", optional: true)
+				.AddJsonFile($"hosting.{Product}.json", optional: true)
 				.Build();
 
 			var host = new WebHostBuilder()

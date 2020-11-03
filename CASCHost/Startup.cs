@@ -11,6 +11,11 @@ using System.Net;
 using Microsoft.AspNetCore.Http;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Win32;
+using System.Security.Cryptography;
+using System.Text;
+using CASCEdit;
+using CASCEdit.Configs;
 
 namespace CASCHost
 {
@@ -28,7 +33,7 @@ namespace CASCHost
 
 		public void ConfigureServices(IServiceCollection services)
 		{
-			var builder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+			var builder = new ConfigurationBuilder().AddJsonFile($"appsettings.{Program.Product}.json", optional: false, reloadOnChange: true);
 			IConfigurationRoot configuration = builder.Build();
 
 			services.AddOptions();
@@ -42,6 +47,9 @@ namespace CASCHost
 			if (env.IsDevelopment())
 				app.UseDeveloperExceptionPage();
 
+            //Load settings
+            Settings = settings.Value;
+
             //Set file handler
             app.UseStaticFiles(new StaticFileOptions()
             {
@@ -50,29 +58,84 @@ namespace CASCHost
 				ServeUnknownFileTypes = true
 			});
 
-			//Load settings
-			Settings = settings.Value;
+            //Create directories
+            Directory.CreateDirectory(Path.Combine(env.WebRootPath, "Data"));
+            Directory.CreateDirectory(Path.Combine(env.WebRootPath, "Data", Settings.Product));
 
-			//Create directories
-			Directory.CreateDirectory(Path.Combine(env.WebRootPath, "Data"));
 			Directory.CreateDirectory(Path.Combine(env.WebRootPath, "Output"));
-			Directory.CreateDirectory(Path.Combine(env.WebRootPath, "SystemFiles"));
+            Directory.CreateDirectory(Path.Combine(env.WebRootPath, "Output", Settings.Product));
 
-			//Check installation is corect
-			StartUpChecks(env);
+            Directory.CreateDirectory(Path.Combine(env.WebRootPath, "SystemFiles"));
+            Directory.CreateDirectory(Path.Combine(env.WebRootPath, "SystemFiles", Settings.Product));
+
+            if (!Directory.Exists(Settings.GameDirectory))
+            {
+                GuessGameDirectory(env);
+            }
+
+            Logger.LogInformation($"Using product: {Settings.Product}");
+
+            //Check installation is corect
+            StartUpChecks(env);
 
 			//Load cache
 			Cache = new Cache(env);
 
 			//Start DataWatcher
-			Watcher = new DataWatcher(env, Cache);
+			Watcher = new DataWatcher(env);
 		}
 
+        public static void ImportBuildInfo(string targetPath)
+        {
+            string remoteBuildInfoPath = Path.Combine(Settings.GameDirectory, ".build.info");
 
+            if (File.Exists(remoteBuildInfoPath))
+            {
+                Logger.LogInformation("Importing .build.info from wow folder...");
+
+                try
+                {
+                    File.Delete(targetPath);
+                    File.Move(remoteBuildInfoPath, targetPath);
+                } catch (IOException e) {
+                    Logger.LogError(e.Message);
+                    Logger.LogError("Failed to import .build.info. You might need to do it manually.");
+
+                    return;
+                }
+
+                return;
+            }
+     
+            Logger.LogInformation(".build.info not found in wow folder, skipping...");
+        }
+
+        private static void GuessGameDirectory(IHostingEnvironment env)
+        {         
+            string wowRoot = (string)Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft\", "installPath", "");
+
+            while (Directory.Exists(wowRoot))
+            {
+                if (Directory.Exists(Path.Combine(wowRoot, "Data")))
+                {
+                    Settings.GameDirectory = wowRoot.TrimEnd('/');
+                    Settings.Save(env);
+
+                    Logger.LogInformation($"GameDirectory set to {Settings.GameDirectory}");
+
+                    return;
+                }
+                else
+                {
+                    wowRoot = Path.GetDirectoryName(wowRoot);
+                }
+            }
+
+            Logger.LogWarning($"Failed to set GameDirectory via registry.");
+        }
 
 		private void StartUpChecks(IHostingEnvironment env)
 		{
-			bool exit = false;
 			const string DOMAIN_REGEX = @"^(?:.*?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^\/\n]+)";
 
 			//Normalise values
@@ -80,20 +143,32 @@ namespace CASCHost
 			Settings.HostDomain = Settings.HostDomain.TrimEnd('/');
 			Settings.Save(env);
 
-			//.build.info check
-			if (!File.Exists(Path.Combine(env.WebRootPath, "SystemFiles", ".build.info")))
+            //Game Directory check
+            if (!File.Exists(Path.Combine(Settings.GameDirectory, "World of Warcraft Launcher.exe")))
+            {
+                Logger.LogCritical("Invalid GameDirectory specified in appSettings.json");
+                DoExit();
+            }
+
+            string buildInfoPath = Path.Combine(env.WebRootPath, "SystemFiles", ".build.info");
+            
+            //.build.info import
+            ImportBuildInfo(buildInfoPath);
+
+            //.build.info check
+            if (!File.Exists(buildInfoPath))
 			{
-				Logger.LogCritical("Missing .build.info.");
-				exit = true;
-			}
+                Logger.LogCritical($"Missing .build.info in {Path.Combine(env.WebRootPath, "SystemFiles")}");
+                DoExit();
+            }
 
 			//Validate the domain name - must be a valid domain or localhost
 			bool hasProtocol = Settings.HostDomain.ToLowerInvariant().Contains("://");
 			if (IPAddress.TryParse(Settings.HostDomain, out IPAddress address))
 			{
 				Logger.LogCritical("HostDomain must be a domain Name.");
-				exit = true;
-			}
+                DoExit();
+            }
 			else if (hasProtocol || !Regex.IsMatch(Settings.HostDomain, DOMAIN_REGEX + "$", RegexOptions.IgnoreCase))
 			{
 				string domain = Regex.Match(Settings.HostDomain, DOMAIN_REGEX, RegexOptions.IgnoreCase).Groups[1].Value;
@@ -104,20 +179,13 @@ namespace CASCHost
 			if (!Uri.IsWellFormedUriString(Settings.PatchUrl, UriKind.Absolute))
 			{
 				Logger.LogCritical("Malformed Patch Url.");
-				exit = true;
-			}
+                DoExit();
+            }
 			else if (!PingPatchUrl())
 			{
 				Logger.LogCritical("Unreachable Patch Url.");
-				exit = true;
-			}
-
-			if (exit)
-			{
-				Logger.LogCritical("Exiting...");
-				System.Threading.Thread.Sleep(3000);
-				Environment.Exit(0);
-			}
+                DoExit();
+            }
 		}
 
 		private bool PingPatchUrl()
@@ -135,5 +203,12 @@ namespace CASCHost
 				return false;
 			}
 		}
+
+        private void DoExit()
+        {
+            Logger.LogCritical("Exiting...");
+            System.Threading.Thread.Sleep(3000);
+            Environment.Exit(0);
+        }
 	}
 }

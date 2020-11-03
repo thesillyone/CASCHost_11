@@ -21,7 +21,7 @@ namespace CASCHost
 		public FileProvider(IHostingEnvironment env, IHttpContextAccessor contextAccessor)
 		{
             this.contextAccessor = contextAccessor;
-            this.outPath = Path.Combine(env.WebRootPath, "Output");
+            this.outPath = Path.Combine(env.WebRootPath, "Output", Startup.Settings.Product);
 		}
 
 
