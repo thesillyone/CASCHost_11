@@ -28,7 +28,8 @@ namespace CASCEdit.Structs
         ptBR = 0x4000,
         itIT = 0x8000,
         ptPT = 0x10000,
-        All_WoW = enUS | koKR | frFR | deDE | zhCN | esES | zhTW | enGB | esMX | ruRU | ptBR | itIT | ptPT
+        All_WoW = enUS | koKR | frFR | deDE | zhCN | esES | zhTW | enGB | esMX | ruRU | ptBR | itIT | ptPT,
+        All_WoW_Classic = enUS | koKR | frFR | deDE | zhCN | esES | zhTW | enGB | esMX | ruRU | ptBR | ptPT
     }
 
     [Flags]

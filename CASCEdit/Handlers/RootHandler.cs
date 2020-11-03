@@ -37,7 +37,7 @@ namespace CASCEdit.Handlers
 
         public RootHandler()
 		{
-			GlobalRoot = new RootChunk() { ContentFlags = ContentFlags.None, LocaleFlags = LocaleFlags.All_WoW };
+			GlobalRoot = new RootChunk() { ContentFlags = ContentFlags.None, LocaleFlags = LocaleFlags.All_WoW, Count = 0 };
 			encodingMap = new EncodingMap(EncodingType.ZLib, 9);
 		}
 
@@ -80,9 +80,25 @@ namespace CASCEdit.Handlers
 
                 parsedFiles += (int)chunk.Count;
 
-                // set the global root
-                if (chunk.LocaleFlags == LocaleFlags.All_WoW && chunk.ContentFlags == ContentFlags.F00080000)
-					GlobalRoot = chunk;
+                //Console.WriteLine("Chunk: {0} {1} (size {2})", chunk.ContentFlags, chunk.LocaleFlags, chunk.Count);
+
+                // set the global root if not already set
+                if (GlobalRoot == null)
+                {
+                    if (chunk.LocaleFlags == LocaleFlags.All_WoW && chunk.ContentFlags == ContentFlags.F00080000)
+                    {
+                        GlobalRoot = chunk;
+                    }
+                    else if (chunk.LocaleFlags == LocaleFlags.All_WoW_Classic && chunk.ContentFlags == ContentFlags.None)
+                    {
+                        GlobalRoot = chunk;
+                    }
+
+                    if (GlobalRoot != null)
+                    {
+                        CASContainer.Logger.LogInformation($"Global root found. Flags: {chunk.ContentFlags}, {chunk.LocaleFlags}. Count: {chunk.Count}");
+                    }
+                }
 
 				uint fileDataIndex = 0;
 				for (int i = 0; i < chunk.Count; i++)
