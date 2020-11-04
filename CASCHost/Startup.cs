@@ -159,6 +159,7 @@ namespace CASCHost
             if (!File.Exists(buildInfoPath))
 			{
                 Logger.LogCritical($"Missing .build.info in {Path.Combine(env.WebRootPath, "SystemFiles")}");
+                Logger.LogCritical("Open Battle.net Launcher to regenerate it and try again.");
                 DoExit();
             }
 
