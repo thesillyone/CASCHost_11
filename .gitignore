@@ -260,3 +260,4 @@ paket-files/
 
 CASCHost/*.db3
 CASCHost/listfile.csv
+HttpProxy/logs/
