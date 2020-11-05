@@ -116,7 +116,7 @@ namespace CASCHost
 
             while (Directory.Exists(wowRoot))
             {
-                if (Directory.Exists(Path.Combine(wowRoot, "Data")))
+                if (File.Exists(Path.Combine(wowRoot, ".product.db")))
                 {
                     Settings.GameDirectory = wowRoot.TrimEnd('/');
                     Settings.Save(env);
@@ -146,7 +146,7 @@ namespace CASCHost
             //Game Directory check
             if (!File.Exists(Path.Combine(Settings.GameDirectory, "World of Warcraft Launcher.exe")))
             {
-                Logger.LogCritical("Invalid GameDirectory specified in appSettings.json");
+                Logger.LogCritical($"Invalid GameDirectory specified in appsettings.{Settings.Product}.json");
                 DoExit();
             }
 
