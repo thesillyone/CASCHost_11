@@ -8,10 +8,21 @@
     <StartupObject />
   </PropertyGroup>
 
+  <PropertyGroup>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="wwwroot\**" />
+    <Content Remove="wwwroot\**" />
+    <EmbeddedResource Remove="wwwroot\**" />
+    <None Remove="wwwroot\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <Content Remove="wwwroot/Data" />
     <Content Remove="wwwroot/Output" />
-    <Content Remove="wwwroot\SystemFiles\.build.info" />
   </ItemGroup>
 
   <ItemGroup>
