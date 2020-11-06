@@ -194,7 +194,7 @@ namespace CASCHost
 			try
 			{
 				using (var clientHandler = new HttpClientHandler() { AllowAutoRedirect = false })
-				using (var webRequest = new HttpClient(clientHandler) { Timeout = TimeSpan.FromSeconds(3) })
+				using (var webRequest = new HttpClient(clientHandler) { Timeout = TimeSpan.FromSeconds(10) })
 				using (var request = new HttpRequestMessage(HttpMethod.Head, Settings.PatchUrl + "/versions"))
 				using (var response = webRequest.SendAsync(request).Result)
 					return response.StatusCode == HttpStatusCode.OK;
