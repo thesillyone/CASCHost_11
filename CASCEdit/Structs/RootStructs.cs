@@ -44,6 +44,7 @@ namespace CASCEdit.Structs
         Alternate = 0x80, // many chinese models have this flag
         F00000100 = 0x100, // apparently client doesn't load files with this flag
         F00000800 = 0x800, // only seen on UpdatePlugin files
+        F00008000 = 0x8000, // Windows ARM64?
         F00020000 = 0x20000, // new 9.0
         F00040000 = 0x40000, // new 9.0
         F00080000 = 0x80000, // new 9.0

@@ -68,7 +68,7 @@ namespace CASCEdit.Handlers
                 stream.BaseStream.Position -= 4;
             }
 
-            long length = stream.BaseStream.Length;
+			long length = stream.BaseStream.Length;
 			while (stream.BaseStream.Position < length)
 			{
 				RootChunk chunk = new RootChunk()
@@ -80,19 +80,15 @@ namespace CASCEdit.Handlers
 
                 parsedFiles += (int)chunk.Count;
 
-                //Console.WriteLine("Chunk: {0} {1} (size {2})", chunk.ContentFlags, chunk.LocaleFlags, chunk.Count);
 
-                // set the global root if not already set
-                if (GlobalRoot == null)
+					//Console.WriteLine("Chunk: {0} {1} (size {2})", chunk.ContentFlags, chunk.LocaleFlags, chunk.Count);
+
+				if (chunk.LocaleFlags == LocaleFlags.All_WoW && chunk.ContentFlags == ContentFlags.F00080000)
+					GlobalRoot = chunk;
+
+				// set the global root if not already set
+				if (GlobalRoot == null)
                 {
-                    if (chunk.LocaleFlags == LocaleFlags.All_WoW && chunk.ContentFlags == ContentFlags.F00080000)
-                    {
-                        GlobalRoot = chunk;
-                    }
-                    else if (chunk.LocaleFlags == LocaleFlags.All_WoW_Classic && chunk.ContentFlags == ContentFlags.None)
-                    {
-                        GlobalRoot = chunk;
-                    }
 
                     if (GlobalRoot != null)
                     {
@@ -121,13 +117,15 @@ namespace CASCEdit.Handlers
                     {
                         entry.CEKey = new MD5Hash(stream);
                         maxId = Math.Max(maxId, entry.FileDataId);
-                    }
+
+					}
 
                     if ((chunk.ContentFlags & ContentFlags.NoNameHash) == 0)
                     {
                         foreach (var entry in chunk.Entries)
                             entry.NameHash = stream.ReadUInt64();
                     }
+
                 }
                 else
                 {
