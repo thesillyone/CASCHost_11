@@ -123,21 +123,11 @@ namespace CASCEdit.Handlers
                         maxId = Math.Max(maxId, entry.FileDataId);
                     }
 
-                    if (parsedFiles > allFiles - namedFiles)
+                    if ((chunk.ContentFlags & ContentFlags.NoNameHash) == 0)
                     {
                         foreach (var entry in chunk.Entries)
-                        {
                             entry.NameHash = stream.ReadUInt64();
-                        }
                     }
-                    else // no namehash
-                    {
-                        foreach (var entry in chunk.Entries)
-                        {
-                            entry.NameHash = 0;
-                        }
-                    }
-
                 }
                 else
                 {
