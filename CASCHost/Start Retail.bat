@@ -1,2 +1,2 @@
-CASCHost.exe wow
+dotnet CASCHost.dll
 pause
