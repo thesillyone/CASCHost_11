@@ -41,7 +41,23 @@ namespace CASCEdit.Handlers
 			encodingMap = new EncodingMap(EncodingType.ZLib, 9);
 		}
 
-		public RootHandler(Stream data, LocaleFlags locale, uint minimumid = 0, bool onlineListfile = false)
+		// DEBUGGING {
+        public void SaveDecompressedChunkToFile(MemoryStream memStream, string filePath)
+        {
+            // Rewind the memory stream to the beginning in case it's at the end
+            memStream.Position = 0;
+
+            // Save the decompressed data to a file
+            using (FileStream file = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+            {
+                memStream.WriteTo(file);
+            }
+
+            Console.WriteLine($"Decompressed chunk saved to {filePath}");
+        }
+        // } DEBUGGING
+
+        public RootHandler(Stream data, LocaleFlags locale, uint minimumid = 0, bool onlineListfile = false)
 		{
 			this.minimumId = minimumid;
 			this.locale = locale;
@@ -50,33 +66,51 @@ namespace CASCEdit.Handlers
             if (!(File.Exists(cdnPath)) && onlineListfile)
             {
                 CASContainer.Logger.LogInformation("Downloading listfile from WoW.Tools");
-                ListFileClient.DownloadFile("https://wow.tools/casc/listfile/download/csv/unverified", cdnPath);
+                ListFileClient.DownloadFile("https://github.com/wowdev/wow-listfile/releases/latest/download/community-listfile.csv", cdnPath);
             }
 
             BinaryReader stream = new BinaryReader(data);
+
+            int headerSize;
 
             // 8.2 root change
             int magic = stream.ReadInt32();
             bool newFormat = magic == headerMagic;
             if (newFormat)
             {
-                allFiles = stream.ReadInt32();
-                namedFiles = stream.ReadInt32();
-            }
+                int field04 = stream.ReadInt32();
+                int field08 = stream.ReadInt32();
+
+                int version = field08;
+                headerSize = field04;
+                if (version != 1)
+                {
+                    allFiles = field04;
+                    namedFiles = field08;
+                    headerSize = 12;
+                }
+                else
+                {
+                    allFiles = stream.ReadInt32();
+                    namedFiles = stream.ReadInt32();
+                }
+           }
             else
             {
                 stream.BaseStream.Position -= 4;
+				headerSize = 0;
             }
 
 			long length = stream.BaseStream.Length;
-			while (stream.BaseStream.Position < length)
+            stream.BaseStream.Position = headerSize;
+            while (stream.BaseStream.Position < length)
 			{
 				RootChunk chunk = new RootChunk()
 				{
 					Count = stream.ReadUInt32(),
 					ContentFlags = (ContentFlags)stream.ReadUInt32(),
 					LocaleFlags = (LocaleFlags)stream.ReadUInt32(),
-				};
+                };
 
                 parsedFiles += (int)chunk.Count;
 

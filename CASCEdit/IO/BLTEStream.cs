@@ -16,7 +16,7 @@ namespace CASCEdit.IO
 		// Original Source: https://github.com/WoW-Tools/CASCExplorer/blob/master/CascLib/BLTEStream.cs
 
 		public const int BLTE_MAGIC = 0x45544C42;
-
+ 
         public IReadOnlyCollection<EncodingMap> EncodingMap => Entries.Select(x => new EncodingMap(x.Encoding, x.CompressionLevel)).ToArray();
 
         private List<BLTEEntry> Entries = new List<BLTEEntry>();
@@ -177,6 +177,7 @@ namespace CASCEdit.IO
             }
         }
 
+        public MemoryStream GetMemoryStream() { return memStream; }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
